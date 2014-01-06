@@ -15,10 +15,12 @@ static NSString * const kCellIdentifier = @"CellIdentifier";
 
 @property (nonatomic, copy) NSArray *items;
 @property (nonatomic, strong) NSDate *nextDrawDate;
-@property (nonatomic, assign) NSInteger frequency;
 
+@property (nonatomic, assign) NSInteger frequency;
+@property (nonatomic, assign) BOOL limiting;
+
+@property (nonatomic, strong) UIView *snapshotContainer; // left 50%
 @property (nonatomic, strong) UIView *tableContainer; // right 50%
-@property (nonatomic, strong) UIView *snapshotContainer; // right 50%
 @property (nonatomic, strong) UITableView *tableView; // added once to table container
 @property (nonatomic, strong) UIView *snapshotView; // created and added to snapshot container when timer fires
 
@@ -32,11 +34,17 @@ static NSString * const kCellIdentifier = @"CellIdentifier";
 
 - (void)displayLinkFired
 {
-    // Seek to the next draw date. Draw if we actually closed over one of those intervals.
-    BOOL draw = NO;
-    NSTimeInterval period = 1.0 / self.frequency;
-    while ([self.nextDrawDate compare:[NSDate date]] == NSOrderedAscending) {
-        self.nextDrawDate = [self.nextDrawDate dateByAddingTimeInterval:period];
+    BOOL draw;
+    if (self.limiting) {
+        // Seek to the next draw date. Draw if we actually passed over one of those intervals.
+        draw = NO;
+        NSTimeInterval period = 1.0 / self.frequency;
+        while ([self.nextDrawDate compare:[NSDate date]] == NSOrderedAscending) {
+            self.nextDrawDate = [self.nextDrawDate dateByAddingTimeInterval:period];
+            draw = YES;
+        }
+    }
+    else {
         draw = YES;
     }
 
@@ -68,12 +76,25 @@ static NSString * const kCellIdentifier = @"CellIdentifier";
 {
     UIStepper *stepper = sender;
     self.frequency = stepper.value;
+
     [self updateTitle];
+}
+
+- (void)switchValueChanged:(id)sender
+{
+    UISwitch *sweetch = sender;
+    self.limiting = sweetch.on;
+
+    UIStepper *stepper = (UIStepper *) self.navigationItem.leftBarButtonItem.customView;
+    stepper.hidden = !self.limiting;
+
+    [self updateTitle];
+    self.nextDrawDate = [NSDate date];
 }
 
 - (void)updateTitle
 {
-    self.title = [NSString stringWithFormat:@"60fps | %dfps", (int) self.frequency];
+    self.title = self.limiting ? [NSString stringWithFormat:@"%dfps | 60fps", (int) self.frequency] : @"Unlimited fps";
 }
 
 #pragma mark - Init/dealloc
@@ -83,6 +104,7 @@ static NSString * const kCellIdentifier = @"CellIdentifier";
     self = [super init];
     if (self) {
         _frequency = 50;
+        _limiting = YES;
 
         NSURL *fileURL = [[NSBundle mainBundle] URLForResource:@"CountriesList" withExtension:@"plist"];
         _items = [[[NSDictionary dictionaryWithContentsOfURL:fileURL] allValues] sortedArrayUsingSelector:@selector(localizedStandardCompare:)];
@@ -96,20 +118,20 @@ static NSString * const kCellIdentifier = @"CellIdentifier";
 {
     [super viewDidLoad];
 
-    self.tableContainer = [UIView new];
-    self.tableContainer.translatesAutoresizingMaskIntoConstraints = NO;
-    self.tableContainer.backgroundColor = [UIColor whiteColor];
-    [self.view addSubview:self.tableContainer];
-
     self.snapshotContainer = [UIView new];
     self.snapshotContainer.translatesAutoresizingMaskIntoConstraints = NO;
     self.snapshotContainer.backgroundColor = [UIColor blackColor];
     [self.view addSubview:self.snapshotContainer];
 
-    NSDictionary *views = NSDictionaryOfVariableBindings(_tableContainer, _snapshotContainer);
-    [self.view addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"|[_tableContainer][_snapshotContainer]|" options:0 metrics:0 views:views]];
-    [self.view addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"V:|[_tableContainer]|" options:0 metrics:0 views:views]];
+    self.tableContainer = [UIView new];
+    self.tableContainer.translatesAutoresizingMaskIntoConstraints = NO;
+    self.tableContainer.backgroundColor = [UIColor whiteColor];
+    [self.view addSubview:self.tableContainer];
+
+    NSDictionary *views = NSDictionaryOfVariableBindings(_snapshotContainer, _tableContainer);
+    [self.view addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"|[_snapshotContainer][_tableContainer]|" options:0 metrics:0 views:views]];
     [self.view addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"V:|[_snapshotContainer]|" options:0 metrics:0 views:views]];
+    [self.view addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"V:|[_tableContainer]|" options:0 metrics:0 views:views]];
     [self.view addConstraint:[NSLayoutConstraint constraintWithItem:self.tableContainer attribute:NSLayoutAttributeWidth relatedBy:NSLayoutRelationEqual
                                                              toItem:self.snapshotContainer attribute:NSLayoutAttributeWidth multiplier:1.0f constant:0.0f]];
 
@@ -118,14 +140,21 @@ static NSString * const kCellIdentifier = @"CellIdentifier";
     self.tableView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     self.tableView.dataSource = self;
     self.tableView.delegate = self;
+    self.tableView.showsVerticalScrollIndicator = NO;
     [self.tableContainer addSubview:self.tableView];
 
     UIStepper *stepper = [UIStepper new];
     stepper.minimumValue = 1;
     stepper.maximumValue = 60;
     stepper.value = self.frequency;
+    stepper.hidden = !self.limiting;
     [stepper addTarget:self action:@selector(stepperValueChanged:) forControlEvents:UIControlEventValueChanged];
-    self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc] initWithCustomView:stepper];
+    self.navigationItem.leftBarButtonItem = [[UIBarButtonItem alloc] initWithCustomView:stepper];
+
+    UISwitch *sweetch = [UISwitch new];
+    sweetch.on = self.limiting;
+    [sweetch addTarget:self action:@selector(switchValueChanged:) forControlEvents:UIControlEventValueChanged];
+    self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc] initWithCustomView:sweetch];
 
     [self updateTitle];
 }
@@ -133,6 +162,8 @@ static NSString * const kCellIdentifier = @"CellIdentifier";
 - (void)viewDidAppear:(BOOL)animated
 {
     [super viewDidAppear:animated];
+
+    self.navigationController.navigationBar.translucent = NO;
 
     [self startDisplayLink];
 }
