@@ -7,20 +7,22 @@
 //
 
 #import "TWTTableViewController.h"
+#import <QuartzCore/QuartzCore.h>
 
 static NSString * const kCellIdentifier = @"CellIdentifier";
 
 @interface TWTTableViewController () <UITableViewDataSource, UITableViewDelegate>
 
+@property (nonatomic, copy) NSArray *items;
+@property (nonatomic, strong) NSDate *nextDrawDate;
+@property (nonatomic, assign) NSInteger frequency;
+
 @property (nonatomic, strong) UIView *tableContainer; // right 50%
 @property (nonatomic, strong) UIView *snapshotContainer; // right 50%
-
-@property (nonatomic, copy) NSArray *items;
 @property (nonatomic, strong) UITableView *tableView; // added once to table container
-
-@property (nonatomic, assign) NSInteger frequency;
-@property (nonatomic, strong) NSTimer *timer;
 @property (nonatomic, strong) UIView *snapshotView; // created and added to snapshot container when timer fires
+
+@property (nonatomic, strong) CADisplayLink *displayLink;
 
 @end
 
@@ -28,34 +30,50 @@ static NSString * const kCellIdentifier = @"CellIdentifier";
 
 #pragma mark - Helpers
 
-- (void)stopTimer
+- (void)displayLinkFired
 {
-    [self.timer invalidate];
-    self.timer = nil;
+    // Seek to the next draw date. Draw if we actually closed over one of those intervals.
+    BOOL draw = NO;
+    NSTimeInterval period = 1.0 / self.frequency;
+    while ([self.nextDrawDate compare:[NSDate date]] == NSOrderedAscending) {
+        self.nextDrawDate = [self.nextDrawDate dateByAddingTimeInterval:period];
+        draw = YES;
+    }
+
+    if (draw) {
+        [self.snapshotView removeFromSuperview];
+        self.snapshotView = [self.tableContainer snapshotViewAfterScreenUpdates:NO];
+        self.snapshotView.frame = self.snapshotContainer.bounds;
+        [self.snapshotContainer addSubview:self.snapshotView];
+    }
 }
 
-- (void)resetTimer
+- (void)stopDisplayLink
 {
-    [self stopTimer];
-    self.timer = [NSTimer timerWithTimeInterval:1.0 / self.frequency target:self selector:@selector(timerFired:) userInfo:nil repeats:YES];
-    [[NSRunLoop mainRunLoop] addTimer:self.timer forMode:NSRunLoopCommonModes];
+    [self.displayLink invalidate];
+    self.displayLink = nil;
 
-    self.title = [NSString stringWithFormat:@"60fps | %dfps", self.frequency];
+    self.nextDrawDate = nil;
 }
 
-- (void)timerFired:(NSTimer *)timer
+- (void)startDisplayLink
 {
-    [self.snapshotView removeFromSuperview];
-    self.snapshotView = [self.tableContainer snapshotViewAfterScreenUpdates:NO];
-    self.snapshotView.frame = self.snapshotContainer.bounds;
-    [self.snapshotContainer addSubview:self.snapshotView];
+    self.nextDrawDate = [NSDate date];
+
+    self.displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(displayLinkFired)];
+    [self.displayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
 }
 
 - (void)stepperValueChanged:(id)sender
 {
     UIStepper *stepper = sender;
     self.frequency = stepper.value;
-    [self resetTimer];
+    [self updateTitle];
+}
+
+- (void)updateTitle
+{
+    self.title = [NSString stringWithFormat:@"60fps | %dfps", (int) self.frequency];
 }
 
 #pragma mark - Init/dealloc
@@ -108,20 +126,22 @@ static NSString * const kCellIdentifier = @"CellIdentifier";
     stepper.value = self.frequency;
     [stepper addTarget:self action:@selector(stepperValueChanged:) forControlEvents:UIControlEventValueChanged];
     self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc] initWithCustomView:stepper];
+
+    [self updateTitle];
 }
 
 - (void)viewDidAppear:(BOOL)animated
 {
     [super viewDidAppear:animated];
 
-    [self resetTimer];
+    [self startDisplayLink];
 }
 
 - (void)viewWillDisappear:(BOOL)animated
 {
     [super viewWillDisappear:animated];
 
-    [self stopTimer];
+    [self stopDisplayLink];
 }
 
 #pragma mark - UITableViewDataSource
