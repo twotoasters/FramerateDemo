@@ -118,6 +118,8 @@ static NSString * const kCellIdentifier = @"CellIdentifier";
 {
     [super viewDidLoad];
 
+    self.view.backgroundColor = [UIColor whiteColor];
+
     self.snapshotContainer = [UIView new];
     self.snapshotContainer.translatesAutoresizingMaskIntoConstraints = NO;
     self.snapshotContainer.backgroundColor = [UIColor blackColor];
@@ -141,6 +143,7 @@ static NSString * const kCellIdentifier = @"CellIdentifier";
     self.tableView.dataSource = self;
     self.tableView.delegate = self;
     self.tableView.showsVerticalScrollIndicator = NO;
+    self.tableView.separatorStyle = UITableViewCellSeparatorStyleNone;
     [self.tableContainer addSubview:self.tableView];
 
     UIStepper *stepper = [UIStepper new];
@@ -192,7 +195,8 @@ static NSString * const kCellIdentifier = @"CellIdentifier";
     UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:kCellIdentifier forIndexPath:indexPath];
 
     cell.textLabel.text = self.items[indexPath.row];
-    cell.backgroundColor = indexPath.row % 2 == 0 ? [UIColor whiteColor] : [UIColor colorWithWhite:0.9f alpha:1.0f];
+    cell.selectionStyle = UITableViewCellSelectionStyleNone;
+    cell.backgroundColor = indexPath.row % 2 == 0 ? [UIColor whiteColor] : [UIColor colorWithWhite:0.95f alpha:1.0f];
 
     return cell;
 }
