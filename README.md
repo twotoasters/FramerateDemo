@@ -8,8 +8,8 @@ But besides just animation (output), the app also demonstrates differences in to
 
 You can pick a framerate using the stepper. When the table on the right is scrolled, the left side of the screen will be updated at the given framerate.
 
-- Try 50 fps first. As you scroll the right side, you'll see the left side mostly keep up, but it will stutter and feel kind of busted.
-- Try 57 fps. The left side keeps up almost correctly, but there are three stutters every second. Look for them.
+- Try [50 fps](https://github.com/twotoasters/FramerateDemo/blob/master/50%20fps.mov?raw=true) first. As you scroll the right side, you'll see the left side mostly keep up, but it will stutter and feel kind of busted.
+- Then try [57 fps](https://github.com/twotoasters/FramerateDemo/blob/master/57%20fps.mov?raw=true). The left side keeps up almost correctly, but there are three stutters every second. Look for them.
 
 I found it easier to identify stuttering if you swipe the scroll view and let it decelerate smoothly.
 
